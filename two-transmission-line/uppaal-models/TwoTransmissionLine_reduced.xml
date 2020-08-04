@@ -1,0 +1,1854 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+
+// Enum for system mode
+typedef int[0,15] system_mode;
+
+ 
+// System Clocks
+clock time, abs_time;
+
+// Global Channels
+broadcast chan global_clock_tick; // global clock synchronization channel
+urgent broadcast chan mode_change; // global mode change synchronization channel
+urgent broadcast chan f_physical[1]; // global physical fault activation synchronization channel
+urgent broadcast chan f_physical_ina[1]; // global physical fault in-activation synchronization channel ** This will never be used ** 
+urgent broadcast chan f_missed[3]; // global missed fault synchronization channels
+urgent broadcast chan f_stuck[3]; // global stuck fault synchronization channel 
+urgent broadcast chan actuation[3]; // global actuator state change channel
+urgent broadcast chan discrepancies[3]; // vector of discrepancy activation channels
+urgent broadcast chan discrepancies_ina[3]; // vector of discrepancy in-activation channels
+urgent broadcast chan command[3]; // global command synchronization channels
+urgent broadcast chan trip;
+//urgent broadcast chan reset; // global reset synchronization channel
+
+// State Variables
+bool f_physical_var[1] = {false}; // Status variable for physical faults
+meta int f_physical_time[1] = {0};
+
+bool f_missed_var[3] = {false, false, false}; // Status variable for missed faults
+meta int f_missed_time[3] = {0,0,0};
+
+bool f_stuck_var[3] = {false, false, false}; // Status variable for stuck faults
+meta int f_stuck_time[3] = {0,0,0};
+
+system_mode M = 0; // System Mode
+int[0,20] global_counter = 0; // Global Counter
+
+bool command_state[3] = {false, false, false};
+meta int command_time[3] = {0,0,0};
+
+bool trip_var = false;
+meta int[0,20] trip_time = 0;
+
+bool act_state_change[3] = {false, false, false};
+meta int act_state_change_time[3] = {0,0,0};
+
+bool discrepancy_state[3] = {false, false,false};
+meta int discrepancy_time[3] = {0,0,0};
+meta int discrepancy_ina_time[3] = {0,0,0};
+
+//const bool reset_state = false;
+
+// Event Identifiers
+
+// Command Identifiers
+const int command_ids[3] = {0,1,2};
+// Discrepancy Activation Identifiers
+const int disc_act_ids[3] = {3,4,5};
+// Discrepancy De-activation Identifiers
+const int disc_ina_ids[3] = {6,7,8};
+// Actuator State Change Identifiers
+const int state_change_ids[3] = {9,10,11};
+// Physical Fault Activation Identifiers
+const int physical_fault_ids[1] = {12};
+// Missed Detection Fault Identifiers
+const int missed_fault_ids[3] = {13,14,15};
+// Stuck Fault Identifiers
+const int stuck_fault_ids[3] = {16,17,18};
+//Trip Identifier
+const int trip_id = 23;
+// Edge Identifers
+const int edge_ids[3] = {0,1,2};
+
+
+void increment_global_counter(){
+    if (global_counter &gt;= 20) { global_counter = 0; }
+    else { global_counter = global_counter + 1; }
+}
+
+bool check_mode(const int&amp; edge_id){
+    if (edge_id == 0) {
+        if (M &lt; 8) {
+            return true;
+        }
+        return false;
+    }
+    else  {
+        if (M == 0 or M == 8) {
+            return true;
+        }
+        return false;
+    }
+    
+}
+
+bool check_occurrence(const int&amp; event_id) {
+    if (event_id == 0) {return command_state[0] and (global_counter - command_time[0] &lt;= 2) and (global_counter - command_time[0] &gt;=0); }
+    else if (event_id == 1) {return command_state[1] and (global_counter - command_time[1] &lt;= 2) and (global_counter - command_time[1] &gt;=0); }
+    else if (event_id == 2) {return command_state[2] and (global_counter - command_time[2] &lt;= 2) and (global_counter - command_time[2] &gt;=0); }
+    //else if (event_id == 3) {return command_state[3] and (global_counter - command_time[3] &lt;= 2) and (global_counter - command_time[3] &gt;=0); }
+    
+    else if (event_id == 3) {return discrepancy_state[0] and (global_counter - discrepancy_time[0] &lt;= 5) and (global_counter - discrepancy_time[0] &gt;=0); }
+    else if (event_id == 4) {return discrepancy_state[1] and (global_counter - discrepancy_time[1] &lt;= 5) and (global_counter - discrepancy_time[1] &gt;=0); }
+    else if (event_id == 5) {return discrepancy_state[2] and (global_counter - discrepancy_time[2] &lt;= 5) and (global_counter - discrepancy_time[2] &gt;=0); }
+
+    else if (event_id == 6) {return not discrepancy_state[0] and (global_counter - discrepancy_ina_time[0] &lt;= 5) and (global_counter - discrepancy_ina_time[0] &gt;=0); }
+    else if (event_id == 7) {return not discrepancy_state[1] and (global_counter - discrepancy_ina_time[1] &lt;= 5) and (global_counter - discrepancy_ina_time[1] &gt;=0); }
+    else if (event_id == 8) {return not discrepancy_state[2] and (global_counter - discrepancy_ina_time[0] &lt;= 5) and (global_counter - discrepancy_ina_time[2] &gt;=0); }
+
+    else if (event_id == 9) {return act_state_change[0] and (global_counter - act_state_change_time[0] &lt;= 2) and (global_counter - act_state_change_time[0] &gt;=0); }
+    else if (event_id == 10) {return act_state_change[1] and (global_counter - act_state_change_time[1] &lt;= 2) and (global_counter - act_state_change_time[1] &gt;=0); }
+    else if (event_id == 11) {return act_state_change[2] and (global_counter - act_state_change_time[2] &lt;= 2) and (global_counter - act_state_change_time[2] &gt;=0); }
+    //else if (event_id == 13) {return act_state_change[3] and (global_counter - act_state_change_time[3] &lt;= 2) and (global_counter - act_state_change_time[3] &gt;=0); }
+
+    else if (event_id == 13) {return f_missed_var[0] and (global_counter - f_missed_time[0] &lt;= 2) and (global_counter - f_missed_time[0] &gt;=0);}
+    else if (event_id == 14) {return f_missed_var[1] and (global_counter - f_missed_time[1] &lt;= 2) and (global_counter - f_missed_time[1] &gt;=0);}
+    else if (event_id == 15) {return f_missed_var[2] and (global_counter - f_missed_time[2] &lt;= 2) and (global_counter - f_missed_time[2] &gt;=0);}
+    //else if (event_id == 18) {return f_missed_var[3] and (global_counter - f_missed_time[3] &lt;= 2) and (global_counter - f_missed_time[3] &gt;=0);}
+
+    else if (event_id == 16) {return f_stuck_var[0] and (global_counter - f_stuck_time[0] &lt;= 2) and (global_counter - f_stuck_time[0] &gt;=0);}
+    else if (event_id == 17) {return f_stuck_var[1] and (global_counter - f_stuck_time[1] &lt;= 2) and (global_counter - f_stuck_time[1] &gt;=0);}
+    else if (event_id == 18) {return f_stuck_var[2] and (global_counter - f_stuck_time[2] &lt;= 2) and (global_counter - f_stuck_time[2] &gt;=0);}
+    //else if (event_id == 22) {return f_stuck_var[3] and (global_counter - f_stuck_time[3] &lt;= 2) and (global_counter - f_stuck_time[3] &gt;=0);}
+
+    else if (event_id == 19) {return not act_state_change[0] and (global_counter - act_state_change_time[0] &lt;= 2) and (global_counter - act_state_change_time[0] &gt;=0); }
+    else if (event_id == 20) {return not act_state_change[1] and (global_counter - act_state_change_time[1] &lt;= 2) and (global_counter - act_state_change_time[1] &gt;=0); }
+    else if (event_id == 21) {return not act_state_change[2] and (global_counter - act_state_change_time[2] &lt;= 2) and (global_counter - act_state_change_time[2] &gt;=0); }
+    //else if (event_id == 26) {return not act_state_change[3] and (global_counter - act_state_change_time[3] &lt;= 2) and (global_counter - act_state_change_time[3] &gt;=0); }
+    
+    else if (event_id == 23) {return trip_var  and (global_counter - trip_time &lt;= 2) and (global_counter - trip_time &gt;= 0); }
+    
+
+    else {return false;}
+}
+
+void register_occurrence(const int&amp; event_id) {
+    if (event_id == 0) {command_state[0] = true ; command_time[0] = global_counter ; }
+    else if (event_id == 1) {command_state[1] = true ;  command_time[1] = global_counter ; }
+    else if (event_id == 2) {command_state[2] = true ;  command_time[2] = global_counter ; }
+    //else if (event_id == 3) {command_state[3] = true ;  command_time[3] = global_counter ; }
+    
+    else if (event_id == 3) {discrepancy_state[0] = true ;  discrepancy_time[0] = global_counter ; }
+    else if (event_id == 4) {discrepancy_state[1] = true ;  discrepancy_time[1] = global_counter ; }
+    else if (event_id == 5) {discrepancy_state[2] = true ;  discrepancy_time[2] = global_counter ; }
+
+    else if (event_id == 6) {discrepancy_state[0] = false ;  discrepancy_ina_time[0] = global_counter ; }
+    else if (event_id == 7) {discrepancy_state[1] = false ;  discrepancy_ina_time[1] = global_counter ; }
+    else if (event_id == 8) {discrepancy_state[2] = false ;  discrepancy_ina_time[2] = global_counter ; }
+
+    else if (event_id == 9) { act_state_change[0] = true; act_state_change[0]  = global_counter ; }
+    else if (event_id == 10) { act_state_change[1] = true; act_state_change[1]  = global_counter ; }
+    else if (event_id == 11) { act_state_change[2] = true; act_state_change[2]  = global_counter ; }
+    //else if (event_id == 13) { state_change_state[3] = true; state_change_time[3]  = global_counter ; }
+    
+    else if (event_id == 13) {f_missed_var[0] = true ;  f_missed_time[0] = global_counter ; }
+    else if (event_id == 14) {f_missed_var[1] = true ;  f_missed_time[1] = global_counter ; }
+    else if (event_id == 15) {f_missed_var[2] = true ;  f_missed_time[2] = global_counter ; }
+    //else if (event_id == 18) {f_missed_var[3] = true ;  f_missed_time[3] = global_counter ; }
+
+    else if (event_id == 16) {f_stuck_var[0] = true ;  f_stuck_time[0] = global_counter ; }
+    else if (event_id == 17) {f_stuck_var[1] = true ;  f_stuck_time[1] = global_counter ; }
+    else if (event_id == 18) {f_stuck_var[2] = true ;  f_stuck_time[2] = global_counter ; }
+    //else if (event_id == 22) {f_stuck_var[3] = true ;  f_stuck_time[3] = global_counter ; }
+    
+    else if (event_id == 19) { act_state_change[0] = false; act_state_change[0]  = global_counter ; }
+    else if (event_id == 20) { act_state_change[1] = false; act_state_change[1]  = global_counter ; }
+    else if (event_id == 21) { act_state_change[2] = false; act_state_change[2]  = global_counter ; }
+    //else if (event_id == 26) { state_change_state[3] = false; state_change_time[3]  = global_counter ; }
+    
+    else if (event_id == 22) {f_physical_var[0] = true; f_physical_time[0] = global_counter ;}
+    else if (event_id == 23) {trip_var = true; trip_time = global_counter ;}
+    else {}    
+}
+
+void update_mode(){
+    if (act_state_change[0] and act_state_change[1] and true and act_state_change[2]){ M = 15; }
+    else if (act_state_change[0] and act_state_change[1] and true and not act_state_change[2]){ M = 14; }
+    //else if (act_state_change[0] and act_state_change[1] and not act_state_change[2] and act_state_change[3]){ M = 2; }
+    //else if (act_state_change[0] and act_state_change[1] and not act_state_change[2] and not act_state_change[3]){ M = 3; }
+    
+    else if (act_state_change[0] and not act_state_change[1] and true and act_state_change[2]){ M = 9; }
+    else if (act_state_change[0] and not act_state_change[1] and true and not act_state_change[2]){ M = 8; }
+    //else if (act_state_change[0] and not act_state_change[1] and not act_state_change[2] and act_state_change[3]){ M = 6; }
+    //else if (act_state_change[0] and not act_state_change[1] and not act_state_change[2] and not act_state_change[3]){ M = 7; }
+
+    else if (not act_state_change[0] and act_state_change[1] and true and act_state_change[2]){ M = 5; }
+    else if (not act_state_change[0] and act_state_change[1] and true and not act_state_change[2]){ M = 4; }
+    //else if (not act_state_change[0] and act_state_change[1] and not act_state_change_state[2] and act_state_change[3]){ M = 10; }
+    //else if (not act_state_change[0] and act_state_change[1] and not act_state_change_state[2] and not act_state_change[3]){ M = 11; }
+    
+    else if (not act_state_change[0] and not act_state_change[1] and true and act_state_change[2]){ M = 1; }
+    else if (not act_state_change[0] and not act_state_change[1] and true and not act_state_change[2]){ M = 0; }
+    //else if (not act_state_change[0] and not act_state_change[1] and not act_state_change[2] and act_state_change[3]){ M = 14; }
+    //else if (not act_state_change[0] and not act_state_change[1] and not act_state_change[2] and not act_state_change[3]){ M = 15; }
+    else {}
+}
+
+bool check_disc_status(const int&amp; disc_id){
+    if (disc_id == 0){
+        if (discrepancy_state[0] and not check_mode(0)){ return true;}
+        else {return false;}
+    }
+    else if (disc_id == 1){
+        if (discrepancy_state[1] and not check_mode(1)){ return true;}
+        else {return false;}
+    }
+    else if (disc_id == 2){
+        if (discrepancy_state[2] and not check_mode(2)){ return true;}
+        else {return false;}
+    }
+    else {return false;}
+}</declaration>
+	<template>
+		<name x="5" y="5">Ticker</name>
+		<declaration>// Place local declarations here.</declaration>
+		<location id="id0" x="-76" y="-68">
+			<name x="-86" y="-102">S1</name>
+			<label kind="invariant" x="-102" y="-51">time &lt;= 1</label>
+		</location>
+		<init ref="id0"/>
+		<transition>
+			<source ref="id0"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-170" y="-246">time &gt;= 1</label>
+			<label kind="synchronisation" x="-170" y="-229">global_clock_tick!</label>
+			<label kind="assignment" x="-170" y="-212">time = 0,
+increment_global_counter()</label>
+			<nail x="-195" y="-178"/>
+			<nail x="8" y="-178"/>
+		</transition>
+	</template>
+	<template>
+		<name>FaultEdge</name>
+		<parameter>const int&amp; edge_id, urgent broadcast chan&amp; src_act, urgent broadcast chan&amp; src_ina,  urgent broadcast chan&amp; dst_act, urgent broadcast chan&amp; dst_ina, const int&amp; dst_id, const int&amp; t_min, const int&amp; t_max, const bool&amp; ND</parameter>
+		<declaration>int[0,100] tick_counter=0;
+</declaration>
+		<location id="id1" x="102" y="-51">
+			<name x="92" y="-85">S4Temp</name>
+			<committed/>
+		</location>
+		<location id="id2" x="340" y="-51">
+			<name x="330" y="-85">S10</name>
+		</location>
+		<location id="id3" x="323" y="-136">
+			<name x="313" y="-170">S9</name>
+		</location>
+		<location id="id4" x="136" y="85">
+			<name x="126" y="51">S8</name>
+			<label kind="invariant" x="-17" y="119">tick_counter &lt; t_max</label>
+		</location>
+		<location id="id5" x="-306" y="212">
+			<name x="-316" y="178">S7</name>
+		</location>
+		<location id="id6" x="-136" y="85">
+			<name x="-146" y="51">S4</name>
+			<label kind="invariant" x="-127" y="102">tick_counter &lt; t_max</label>
+		</location>
+		<location id="id7" x="-297" y="-59">
+			<name x="-307" y="-93">S2</name>
+		</location>
+		<location id="id8" x="382" y="-221">
+			<name x="372" y="-255">S6</name>
+		</location>
+		<location id="id9" x="-467" y="-59">
+			<name x="-477" y="-93">S1</name>
+		</location>
+		<location id="id10" x="-467" y="-221">
+			<name x="-477" y="-255">S5</name>
+		</location>
+		<location id="id11" x="-306" y="85">
+			<name x="-316" y="51">S3</name>
+		</location>
+		<init ref="id11"/>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id4"/>
+			<label kind="guard" x="161" y="178">tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="170" y="195">global_clock_tick?</label>
+			<label kind="assignment" x="178" y="212">tick_counter+=1</label>
+			<nail x="170" y="212"/>
+			<nail x="289" y="212"/>
+		</transition>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-8" y="221">tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="8" y="255">src_act?</label>
+			<label kind="assignment" x="0" y="238">tick_counter=0</label>
+			<nail x="-272" y="238"/>
+			<nail x="136" y="238"/>
+			<nail x="136" y="153"/>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-288" y="195">src_ina?</label>
+			<label kind="assignment" x="-288" y="212">tick_counter=0</label>
+			<nail x="119" y="127"/>
+			<nail x="119" y="212"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id11"/>
+			<label kind="synchronisation" x="-246" y="136">src_ina?</label>
+			<label kind="assignment" x="-263" y="153">tick_counter=0</label>
+			<nail x="-221" y="153"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id11"/>
+			<label kind="synchronisation" x="-160" y="170">src_ina?</label>
+			<label kind="assignment" x="-160" y="187">tick_counter=0</label>
+			<nail x="102" y="187"/>
+			<nail x="-263" y="187"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="guard" x="229" y="-102">ND</label>
+			<label kind="assignment" x="187" y="-85">tick_counter=0</label>
+			<nail x="187" y="-85"/>
+			<nail x="297" y="-85"/>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id2"/>
+			<label kind="guard" x="170" y="-17">tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="170" y="0">global_clock_tick?</label>
+			<label kind="assignment" x="170" y="17">tick_counter = 0</label>
+			<nail x="136" y="17"/>
+			<nail x="340" y="17"/>
+			<nail x="340" y="-17"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id3"/>
+			<label kind="synchronisation" x="195" y="-153">dst_act!</label>
+			<label kind="assignment" x="170" y="-136">tick_counter=0,
+register_occurrence(dst_id)</label>
+			<nail x="161" y="-136"/>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id2"/>
+			<label kind="synchronisation" x="221" y="-68">dst_act?</label>
+			<label kind="assignment" x="195" y="-51">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id11"/>
+			<label kind="synchronisation" x="-399" y="136">dst_ina?</label>
+			<nail x="-340" y="187"/>
+			<nail x="-340" y="110"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-331" y="144">dst_act?</label>
+		</transition>
+		<transition>
+			<source ref="id5"/>
+			<target ref="id10"/>
+			<label kind="guard" x="-544" y="221">not check_mode(edge_id)</label>
+			<label kind="synchronisation" x="-527" y="238">mode_change?</label>
+			<nail x="-323" y="238"/>
+			<nail x="-578" y="238"/>
+			<nail x="-578" y="-238"/>
+			<nail x="-493" y="-238"/>
+		</transition>
+		<transition>
+			<source ref="id10"/>
+			<target ref="id5"/>
+			<label kind="guard" x="-527" y="195">check_mode(edge_id)</label>
+			<label kind="synchronisation" x="-510" y="178">mode_change?</label>
+			<nail x="-552" y="-221"/>
+			<nail x="-552" y="212"/>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id8"/>
+			<label kind="guard" x="229" y="119">not check_mode(edge_id)</label>
+			<label kind="synchronisation" x="246" y="136">mode_change?</label>
+			<label kind="assignment" x="246" y="153">tick_counter=0</label>
+			<nail x="178" y="110"/>
+			<nail x="408" y="110"/>
+			<nail x="408" y="-221"/>
+		</transition>
+		<transition>
+			<source ref="id8"/>
+			<target ref="id4"/>
+			<label kind="guard" x="178" y="51">check_mode(edge_id) and
+tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="306" y="85">mode_change?</label>
+			<label kind="assignment" x="187" y="85">tick_counter = 0</label>
+			<nail x="382" y="85"/>
+		</transition>
+		<transition>
+			<source ref="id8"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="-254" y="-204">dst_ina?</label>
+			<nail x="340" y="-187"/>
+			<nail x="-272" y="-187"/>
+		</transition>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id8"/>
+			<label kind="synchronisation" x="246" y="-221">dst_act?</label>
+			<nail x="-297" y="-204"/>
+			<nail x="340" y="-204"/>
+		</transition>
+		<transition>
+			<source ref="id10"/>
+			<target ref="id8"/>
+			<label kind="synchronisation" x="246" y="-255">src_act?</label>
+			<nail x="-433" y="-238"/>
+			<nail x="331" y="-238"/>
+		</transition>
+		<transition>
+			<source ref="id8"/>
+			<target ref="id10"/>
+			<label kind="synchronisation" x="-416" y="-238">src_ina?</label>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-178" y="-161">not check_mode(edge_id)</label>
+			<label kind="synchronisation" x="-153" y="-144">mode_change?</label>
+			<label kind="assignment" x="-153" y="-127">tick_counter = 0</label>
+			<nail x="102" y="-127"/>
+			<nail x="-229" y="-127"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-51" y="-8">tick_counter &lt;= t_max and 
+tick_counter &gt;= t_min</label>
+			<label kind="synchronisation" x="-51" y="25">global_clock_tick?</label>
+			<label kind="assignment" x="-51" y="42">tick_counter +=1</label>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-67" y="-93">tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="-67" y="-76">global_clock_tick?</label>
+			<label kind="assignment" x="-67" y="-59">tick_counter +=1</label>
+			<nail x="-85" y="-59"/>
+			<nail x="8" y="-59"/>
+		</transition>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-280" y="-93">check_mode(edge_id) and 
+tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="-280" y="-59">mode_change?</label>
+			<label kind="assignment" x="-280" y="-42">tick_counter=0</label>
+			<nail x="-136" y="-59"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-297" y="-8">not check_mode(edge_id)</label>
+			<label kind="synchronisation" x="-280" y="8">mode_change?</label>
+			<label kind="assignment" x="-280" y="25">tick_counter=0</label>
+		</transition>
+		<transition>
+			<source ref="id4"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-93" y="153">tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="-59" y="136">dst_ina?</label>
+			<nail x="85" y="153"/>
+			<nail x="-136" y="153"/>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id4"/>
+			<label kind="guard" x="-93" y="85">tick_counter &lt; t_max</label>
+			<label kind="synchronisation" x="-51" y="68">dst_act?</label>
+		</transition>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id11"/>
+			<label kind="guard" x="-459" y="0">check_mode(edge_id)</label>
+			<label kind="synchronisation" x="-450" y="17">mode_change?</label>
+		</transition>
+		<transition>
+			<source ref="id10"/>
+			<target ref="id9"/>
+			<label kind="synchronisation" x="-527" y="-153">dst_ina?</label>
+			<nail x="-510" y="-144"/>
+			<nail x="-510" y="-144"/>
+		</transition>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id10"/>
+			<label kind="synchronisation" x="-467" y="-157">dst_act?</label>
+		</transition>
+		<transition>
+			<source ref="id7"/>
+			<target ref="id9"/>
+			<label kind="synchronisation" x="-416" y="-102">src_ina?</label>
+			<nail x="-391" y="-119"/>
+		</transition>
+		<transition>
+			<source ref="id9"/>
+			<target ref="id7"/>
+			<label kind="synchronisation" x="-416" y="-76">src_act?</label>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id9"/>
+			<label kind="guard" x="-518" y="68">not check_mode(edge_id)</label>
+			<label kind="synchronisation" x="-459" y="85">mode_change?</label>
+			<nail x="-467" y="85"/>
+		</transition>
+		<transition>
+			<source ref="id11"/>
+			<target ref="id6"/>
+			<label kind="guard" x="-306" y="102">tick_counter &lt;= t_max</label>
+			<label kind="synchronisation" x="-272" y="68">src_act?</label>
+			<label kind="assignment" x="-289" y="85">tick_counter = 0</label>
+		</transition>
+	</template>
+	<template>
+		<name>Injector_Physical</name>
+		<parameter>int len, const bool&amp; type, const int&amp; inject_time, const int&amp; offset</parameter>
+		<location id="id12" x="42" y="0">
+			<name x="32" y="-34">S2</name>
+		</location>
+		<location id="id13" x="-238" y="0">
+			<name x="-264" y="17">S1Temp</name>
+			<label kind="invariant" x="-280" y="34">len &gt;= 0</label>
+			<committed/>
+		</location>
+		<location id="id14" x="-586" y="0">
+			<name x="-596" y="-34">S1</name>
+			<label kind="invariant" x="-680" y="17">global_counter &lt;= inject_time-1</label>
+		</location>
+		<init ref="id14"/>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id12"/>
+			<label kind="guard" x="-178" y="-17">len &lt;= 0</label>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-314" y="119">len &gt; 0 and type</label>
+			<label kind="assignment" x="-272" y="136">len-=1</label>
+			<nail x="-323" y="136"/>
+			<nail x="-136" y="136"/>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-314" y="-127">len &gt; 0</label>
+			<label kind="synchronisation" x="-314" y="-110">f_physical[len-1]!</label>
+			<label kind="assignment" x="-314" y="-93">register_occurrence(len-1 + offset),
+len-=1</label>
+			<nail x="-331" y="-110"/>
+			<nail x="-144" y="-110"/>
+		</transition>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-544" y="-51">global_counter &gt;= inject_time-1 and
+len &gt; 0</label>
+			<label kind="synchronisation" x="-450" y="-34">global_clock_tick?</label>
+		</transition>
+	</template>
+	<template>
+		<name>Injector_Missed</name>
+		<parameter>int len, const bool&amp; type, const int&amp; inject_time, const int&amp; offset</parameter>
+		<location id="id15" x="-238" y="0">
+			<name x="-264" y="17">S1Temp</name>
+			<label kind="invariant" x="-280" y="34">len &gt;= 0</label>
+			<committed/>
+		</location>
+		<location id="id16" x="42" y="0">
+			<name x="32" y="-34">S2</name>
+		</location>
+		<location id="id17" x="-586" y="0">
+			<name x="-596" y="-34">S1</name>
+			<label kind="invariant" x="-680" y="17">global_counter &lt;= inject_time-1</label>
+		</location>
+		<init ref="id17"/>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id16"/>
+			<label kind="guard" x="-178" y="-17">len &lt;= 0</label>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-314" y="119">len &gt; 0 and type</label>
+			<label kind="assignment" x="-272" y="136">len-=1</label>
+			<nail x="-323" y="136"/>
+			<nail x="-136" y="136"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-314" y="-127">len &gt; 0</label>
+			<label kind="synchronisation" x="-314" y="-110">f_missed[len-1]!</label>
+			<label kind="assignment" x="-314" y="-93">register_occurrence(len -1 + offset),
+len-=1</label>
+			<nail x="-331" y="-110"/>
+			<nail x="-144" y="-110"/>
+		</transition>
+		<transition>
+			<source ref="id17"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-544" y="-51">global_counter &gt;= inject_time-1 and
+len &gt; 0</label>
+			<label kind="synchronisation" x="-450" y="-34">global_clock_tick?</label>
+		</transition>
+	</template>
+	<template>
+		<name>Injector_Stuck</name>
+		<parameter>int len, const bool&amp; type, const int&amp; inject_time, const int&amp; offset</parameter>
+		<location id="id18" x="-238" y="0">
+			<name x="-264" y="17">S1Temp</name>
+			<label kind="invariant" x="-280" y="34">len &gt;= 0</label>
+			<committed/>
+		</location>
+		<location id="id19" x="42" y="0">
+			<name x="32" y="-34">S2</name>
+		</location>
+		<location id="id20" x="-586" y="0">
+			<name x="-596" y="-34">S1</name>
+			<label kind="invariant" x="-680" y="17">global_counter &lt;= inject_time-1</label>
+		</location>
+		<init ref="id20"/>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id19"/>
+			<label kind="guard" x="-178" y="-17">len &lt;= 0</label>
+		</transition>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-314" y="119">len &gt; 0 and type</label>
+			<label kind="assignment" x="-272" y="136">len-=1</label>
+			<nail x="-323" y="136"/>
+			<nail x="-136" y="136"/>
+		</transition>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-314" y="-127">len &gt; 0</label>
+			<label kind="synchronisation" x="-314" y="-110">f_stuck[len-1]!</label>
+			<label kind="assignment" x="-314" y="-93">register_occurrence(len -1 +offset),
+len-=1</label>
+			<nail x="-331" y="-110"/>
+			<nail x="-144" y="-110"/>
+		</transition>
+		<transition>
+			<source ref="id20"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-544" y="-51">global_counter &gt;= inject_time-1 and
+len &gt; 0</label>
+			<label kind="synchronisation" x="-450" y="-34">global_clock_tick?</label>
+		</transition>
+	</template>
+	<template>
+		<name>ProtectionDevice</name>
+		<parameter>const int&amp; r, const int&amp; disc_id, urgent broadcast chan&amp; action,  const int&amp; action_id, const int&amp; fmiss_id, const int&amp; reset_id</parameter>
+		<declaration>int[0,100] tick_counter;</declaration>
+		<location id="id21" x="-552" y="144">
+			<name x="-562" y="110">S3Temp</name>
+			<urgent/>
+		</location>
+		<location id="id22" x="187" y="0">
+			<name x="177" y="-34">S2</name>
+		</location>
+		<location id="id23" x="-331" y="144">
+			<name x="-341" y="110">S3</name>
+			<label kind="invariant" x="-314" y="127">tick_counter &lt;= r</label>
+		</location>
+		<location id="id24" x="-76" y="0">
+			<name x="-110" y="-34">S1S2Temp</name>
+			<committed/>
+		</location>
+		<location id="id25" x="-331" y="0">
+			<name x="-341" y="-34">S1Temp</name>
+			<urgent/>
+		</location>
+		<location id="id26" x="-552" y="0">
+			<name x="-562" y="-34">S1</name>
+			<label kind="invariant" x="-688" y="-8">tick_counter &lt;= r</label>
+		</location>
+		<init ref="id26"/>
+		<transition>
+			<source ref="id21"/>
+			<target ref="id23"/>
+			<label kind="guard" x="-544" y="170">not check_occurrence(reset_id)</label>
+			<label kind="assignment" x="-493" y="187">tick_counter=0</label>
+			<nail x="-433" y="204"/>
+		</transition>
+		<transition>
+			<source ref="id21"/>
+			<target ref="id26"/>
+			<label kind="guard" x="-637" y="51">check_occurrence(reset_id)</label>
+			<label kind="assignment" x="-603" y="68">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id25"/>
+			<target ref="id26"/>
+			<label kind="guard" x="-527" y="-93">not ( check_occurrence(disc_id) or 
+check_occurrence(fmiss_id) )</label>
+			<label kind="assignment" x="-493" y="-59">tick_counter = 0</label>
+			<nail x="-442" y="-68"/>
+		</transition>
+		<transition>
+			<source ref="id23"/>
+			<target ref="id23"/>
+			<label kind="guard" x="-323" y="204">tick_counter &lt; r</label>
+			<label kind="synchronisation" x="-323" y="221">global_clock_tick?</label>
+			<label kind="assignment" x="-323" y="238">tick_counter+=1</label>
+			<nail x="-331" y="221"/>
+			<nail x="-263" y="221"/>
+		</transition>
+		<transition>
+			<source ref="id23"/>
+			<target ref="id21"/>
+			<label kind="guard" x="-476" y="110">tick_counter &gt;= r</label>
+			<label kind="synchronisation" x="-484" y="127">global_clock_tick?</label>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id22"/>
+			<label kind="synchronisation" x="-17" y="-17">action!</label>
+			<label kind="assignment" x="-58" y="0">register_occurrence(action_id)</label>
+		</transition>
+		<transition>
+			<source ref="id25"/>
+			<target ref="id23"/>
+			<label kind="guard" x="-331" y="38">check_occurrence(fmiss_id)</label>
+			<label kind="assignment" x="-331" y="72">tick_counter=0</label>
+		</transition>
+		<transition>
+			<source ref="id25"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-297" y="-17">check_occurrence(disc_id)</label>
+			<label kind="assignment" x="-255" y="0">tick_counter=0</label>
+		</transition>
+		<transition>
+			<source ref="id26"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-501" y="-25">tick_counter &gt;= r</label>
+			<label kind="synchronisation" x="-501" y="0">global_clock_tick?</label>
+		</transition>
+		<transition>
+			<source ref="id26"/>
+			<target ref="id26"/>
+			<label kind="guard" x="-663" y="-127">tick_counter &lt; r</label>
+			<label kind="synchronisation" x="-654" y="-110">global_clock_tick?</label>
+			<label kind="assignment" x="-663" y="-93">tick_counter+=1</label>
+			<nail x="-628" y="-68"/>
+			<nail x="-552" y="-68"/>
+		</transition>
+	</template>
+	<template>
+		<name>Zone1Element</name>
+		<parameter>const int&amp; f_miss_id, const int&amp; disc_id, const int&amp; cmd_id, urgent broadcast chan&amp; command, const int&amp; trip_id, urgent broadcast chan&amp; trip , const int&amp; r</parameter>
+		<declaration>int[0,10] tick_counter = 0;</declaration>
+		<location id="id27" x="-1003" y="-756">
+			<name x="-1013" y="-790">TEMP4</name>
+			<committed/>
+		</location>
+		<location id="id28" x="-1207" y="-756">
+			<name x="-1241" y="-790">TRIPPED</name>
+		</location>
+		<location id="id29" x="-790" y="-756">
+			<name x="-773" y="-765">TEMP3</name>
+			<committed/>
+		</location>
+		<location id="id30" x="-790" y="-867">
+			<name x="-773" y="-875">TEMP2</name>
+			<committed/>
+		</location>
+		<location id="id31" x="-790" y="-994">
+			<name x="-765" y="-1003">MISSED</name>
+		</location>
+		<location id="id32" x="-1003" y="-867">
+			<name x="-1013" y="-901">TEMP1</name>
+			<urgent/>
+		</location>
+		<location id="id33" x="-1207" y="-867">
+			<name x="-1217" y="-901">IDLE</name>
+		</location>
+		<init ref="id33"/>
+		<transition>
+			<source ref="id27"/>
+			<target ref="id28"/>
+			<label kind="synchronisation" x="-1189" y="-773">trip!</label>
+			<label kind="assignment" x="-1189" y="-756">register_occurrence(trip_id)</label>
+		</transition>
+		<transition>
+			<source ref="id29"/>
+			<target ref="id27"/>
+			<label kind="synchronisation" x="-985" y="-773">command!</label>
+			<label kind="assignment" x="-985" y="-756">register_occurrence(cmd_id)</label>
+		</transition>
+		<transition>
+			<source ref="id32"/>
+			<target ref="id33"/>
+			<label kind="guard" x="-1181" y="-960">tick_counter &lt;= r</label>
+			<nail x="-1105" y="-943"/>
+		</transition>
+		<transition>
+			<source ref="id30"/>
+			<target ref="id32"/>
+			<label kind="guard" x="-1028" y="-977">not (check_occurrence(disc_id) 
+or check_occurrence(f_miss_id) )</label>
+			<label kind="assignment" x="-960" y="-926">tick_counter = 0</label>
+			<nail x="-901" y="-943"/>
+		</transition>
+		<transition>
+			<source ref="id30"/>
+			<target ref="id31"/>
+			<label kind="guard" x="-790" y="-964">check_occurrence(f_miss_id)</label>
+		</transition>
+		<transition>
+			<source ref="id30"/>
+			<target ref="id29"/>
+			<label kind="guard" x="-790" y="-833">check_occurrence(disc_id)</label>
+		</transition>
+		<transition>
+			<source ref="id32"/>
+			<target ref="id30"/>
+			<label kind="guard" x="-969" y="-884">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id33"/>
+			<target ref="id32"/>
+			<label kind="synchronisation" x="-1173" y="-884">global_clock_tick?</label>
+			<label kind="assignment" x="-1173" y="-867">tick_counter+=1</label>
+		</transition>
+	</template>
+	<template>
+		<name>Zone2Element</name>
+		<parameter>const int&amp; f_miss_id, const int&amp; disc_act_id_1, const int&amp; disc_act_id_2,  const int&amp; disc_ina_id_1, const int&amp; disc_ina_id_2, const int&amp; cmd_id, urgent broadcast chan&amp; command, const int&amp; trip_id, const int&amp; r, const int&amp; delay</parameter>
+		<declaration>int[0,10] tick_counter = 0;
+int[0, 10] tick_counter_ = 0;</declaration>
+		<location id="id34" x="263" y="-442">
+			<name x="187" y="-450">TRIPPED</name>
+		</location>
+		<location id="id35" x="263" y="-289">
+			<name x="204" y="-297">TEMP6</name>
+			<committed/>
+		</location>
+		<location id="id36" x="263" y="-144">
+			<name x="238" y="-127">TEMP5</name>
+			<committed/>
+		</location>
+		<location id="id37" x="-221" y="-144">
+			<name x="-231" y="-178">TEMP4</name>
+			<committed/>
+		</location>
+		<location id="id38" x="42" y="-144">
+			<name x="42" y="-127">TEMP3</name>
+			<urgent/>
+		</location>
+		<location id="id39" x="-221" y="-442">
+			<name x="-204" y="-450">MISSED</name>
+		</location>
+		<location id="id40" x="42" y="-289">
+			<name x="59" y="-297">WAIT</name>
+		</location>
+		<location id="id41" x="-221" y="-289">
+			<name x="-246" y="-272">TEMP2</name>
+			<committed/>
+		</location>
+		<location id="id42" x="-442" y="-289">
+			<name x="-467" y="-272">TEMP1</name>
+			<urgent/>
+		</location>
+		<location id="id43" x="-671" y="-289">
+			<name x="-681" y="-323">IDLE</name>
+		</location>
+		<init ref="id43"/>
+		<transition>
+			<source ref="id37"/>
+			<target ref="id34"/>
+			<label kind="guard" x="153" y="0">check_occurrence(cmd_id)</label>
+			<label kind="assignment" x="195" y="17">tick_counter = 0,
+tick_counter_ = 0</label>
+			<nail x="-255" y="-102"/>
+			<nail x="-255" y="17"/>
+			<nail x="365" y="17"/>
+			<nail x="365" y="-442"/>
+		</transition>
+		<transition>
+			<source ref="id37"/>
+			<target ref="id43"/>
+			<label kind="guard" x="-476" y="-204">check_occurrence(disc_ina_id_2)</label>
+			<label kind="assignment" x="-425" y="-187">tick_counter = 0,
+tick_counter_ =0</label>
+			<nail x="-221" y="-187"/>
+			<nail x="-629" y="-187"/>
+			<nail x="-629" y="-255"/>
+		</transition>
+		<transition>
+			<source ref="id37"/>
+			<target ref="id35"/>
+			<label kind="guard" x="-51" y="-34">check_occurrence(trip_id)</label>
+			<label kind="assignment" x="-25" y="-17">tick_counter = 0,
+tick_counter_ = 0</label>
+			<nail x="-221" y="-17"/>
+			<nail x="323" y="-17"/>
+			<nail x="323" y="-289"/>
+		</transition>
+		<transition>
+			<source ref="id36"/>
+			<target ref="id38"/>
+			<label kind="guard" x="136" y="-110">false</label>
+			<label kind="assignment" x="102" y="-85">tick_counter_ = 0</label>
+			<nail x="153" y="-76"/>
+		</transition>
+		<transition>
+			<source ref="id35"/>
+			<target ref="id34"/>
+			<label kind="synchronisation" x="178" y="-382">command!</label>
+			<label kind="assignment" x="68" y="-365">register_occurrence(cmd_id)</label>
+		</transition>
+		<transition>
+			<source ref="id36"/>
+			<target ref="id35"/>
+			<label kind="guard" x="229" y="-229">true</label>
+			<label kind="assignment" x="144" y="-212">tick_counter = 0,
+tick_counter_ = 0</label>
+		</transition>
+		<transition>
+			<source ref="id38"/>
+			<target ref="id36"/>
+			<label kind="guard" x="85" y="-161">tick_counter_ &gt; delay</label>
+		</transition>
+		<transition>
+			<source ref="id37"/>
+			<target ref="id43"/>
+			<label kind="guard" x="-654" y="-161">check_occurrence(disc_ina_id_1)</label>
+			<label kind="assignment" x="-653" y="-144">tick_counter = 0,
+tick_counter_ = 0</label>
+			<nail x="-671" y="-144"/>
+		</transition>
+		<transition>
+			<source ref="id37"/>
+			<target ref="id38"/>
+			<label kind="guard" x="-212" y="-127">not ( check_occurrence(disc_ina_id_1)
+or check_occurrence(disc_ina_id_2) 
+or check_occurrence(trip_id)
+or check_occurrence(cmd_id) )</label>
+			<label kind="assignment" x="-144" y="-59">tick_counter = 0</label>
+			<nail x="-85" y="-76"/>
+		</transition>
+		<transition>
+			<source ref="id38"/>
+			<target ref="id37"/>
+			<label kind="guard" x="-144" y="-161">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id38"/>
+			<target ref="id40"/>
+			<label kind="guard" x="59" y="-263">tick_counter &lt;= r and 
+tick_counter_ &lt;= delay</label>
+			<nail x="110" y="-221"/>
+		</transition>
+		<transition>
+			<source ref="id40"/>
+			<target ref="id38"/>
+			<label kind="synchronisation" x="-85" y="-229">global_clock_tick?</label>
+			<label kind="assignment" x="-85" y="-212">tick_counter+=1,
+tick_counter_ +=1</label>
+		</transition>
+		<transition>
+			<source ref="id41"/>
+			<target ref="id40"/>
+			<label kind="guard" x="-178" y="-272">check_occurrence(disc_act_id_2)</label>
+			<label kind="assignment" x="-152" y="-255">tick_counter = 0</label>
+			<nail x="-170" y="-255"/>
+			<nail x="0" y="-255"/>
+		</transition>
+		<transition>
+			<source ref="id41"/>
+			<target ref="id39"/>
+			<label kind="guard" x="-221" y="-399">check_occurrence(f_miss_id)</label>
+			<label kind="assignment" x="-221" y="-382">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id41"/>
+			<target ref="id40"/>
+			<label kind="guard" x="-195" y="-306">check_occurrence(disc_act_id_1)</label>
+			<label kind="assignment" x="-161" y="-289">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id42"/>
+			<target ref="id43"/>
+			<label kind="guard" x="-620" y="-382">tick_counter &lt;= r</label>
+			<nail x="-561" y="-365"/>
+		</transition>
+		<transition>
+			<source ref="id41"/>
+			<target ref="id42"/>
+			<label kind="guard" x="-476" y="-408">not ( check_occurrence(f_miss_id) 
+or check_occurrence(disc_act_id_1) 
+or check_occurrence(disc_act_id_2) )</label>
+			<label kind="assignment" x="-399" y="-357">tick_counter = 0</label>
+			<nail x="-340" y="-365"/>
+		</transition>
+		<transition>
+			<source ref="id42"/>
+			<target ref="id41"/>
+			<label kind="guard" x="-391" y="-306">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id43"/>
+			<target ref="id42"/>
+			<label kind="synchronisation" x="-612" y="-306">global_clock_tick?</label>
+			<label kind="assignment" x="-620" y="-289">tick_counter +=1</label>
+		</transition>
+	</template>
+	<template>
+		<name>Zone3Element</name>
+		<parameter>const int&amp; f_miss_id, const int&amp; disc_act_id_1, const int&amp; disc_act_id_2, const int&amp; disc_act_id_3,  const int&amp; disc_ina_id_1, const int&amp; disc_ina_id_2, const int&amp; disc_ina_id_3, const int&amp; cmd_id, urgent broadcast chan&amp; command, const int&amp; r, const int&amp; delay</parameter>
+		<declaration>int[0,10] tick_counter = 0;
+int[0,10] tick_counter_= 0;</declaration>
+		<location id="id44" x="-305" y="-280">
+			<name x="-315" y="-314">TEMP4</name>
+			<committed/>
+		</location>
+		<location id="id45" x="179" y="-578">
+			<name x="103" y="-586">TRIPPED</name>
+		</location>
+		<location id="id46" x="-755" y="-425">
+			<name x="-765" y="-459">IDLE</name>
+		</location>
+		<location id="id47" x="179" y="-425">
+			<name x="120" y="-433">TEMP6</name>
+			<committed/>
+		</location>
+		<location id="id48" x="179" y="-280">
+			<name x="154" y="-263">TEMP5</name>
+			<committed/>
+		</location>
+		<location id="id49" x="-42" y="-280">
+			<name x="-42" y="-263">TEMP3</name>
+			<urgent/>
+		</location>
+		<location id="id50" x="-305" y="-578">
+			<name x="-288" y="-586">MISSED</name>
+		</location>
+		<location id="id51" x="-42" y="-425">
+			<name x="-25" y="-433">WAIT</name>
+		</location>
+		<location id="id52" x="-305" y="-425">
+			<name x="-330" y="-408">TEMP2</name>
+			<committed/>
+		</location>
+		<location id="id53" x="-526" y="-425">
+			<name x="-551" y="-408">TEMP1</name>
+			<urgent/>
+		</location>
+		<init ref="id46"/>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id46"/>
+			<label kind="guard" x="-688" y="-357">check_occurrence(disc_ina_id_3)</label>
+			<label kind="assignment" x="-679" y="-340">tick_counter=0,
+tick_counter_ = 0</label>
+			<nail x="-306" y="-340"/>
+			<nail x="-697" y="-340"/>
+			<nail x="-697" y="-391"/>
+		</transition>
+		<transition>
+			<source ref="id52"/>
+			<target ref="id51"/>
+			<label kind="guard" x="-272" y="-484">check_occurrence(disc_act_id_3)</label>
+			<label kind="assignment" x="-253" y="-468">tick_counter=0</label>
+			<nail x="-271" y="-468"/>
+			<nail x="-76" y="-468"/>
+		</transition>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id45"/>
+			<label kind="guard" x="69" y="-136">check_occurrence(cmd_id)</label>
+			<label kind="assignment" x="111" y="-119">tick_counter = 0,
+tick_counter_ = 0</label>
+			<nail x="-339" y="-238"/>
+			<nail x="-339" y="-119"/>
+			<nail x="281" y="-119"/>
+			<nail x="281" y="-578"/>
+		</transition>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id46"/>
+			<label kind="guard" x="-544" y="-323">check_occurrence(disc_ina_id_2)</label>
+			<label kind="assignment" x="-476" y="-306">tick_counter = 0,
+tick_counter_ =0</label>
+			<nail x="-331" y="-306"/>
+			<nail x="-731" y="-306"/>
+			<nail x="-731" y="-391"/>
+		</transition>
+		<transition>
+			<source ref="id48"/>
+			<target ref="id49"/>
+			<label kind="guard" x="52" y="-246">false</label>
+			<label kind="assignment" x="18" y="-221">tick_counter_ = 0</label>
+			<nail x="69" y="-212"/>
+		</transition>
+		<transition>
+			<source ref="id47"/>
+			<target ref="id45"/>
+			<label kind="synchronisation" x="94" y="-518">command!</label>
+			<label kind="assignment" x="-16" y="-501">register_occurrence(cmd_id)</label>
+		</transition>
+		<transition>
+			<source ref="id48"/>
+			<target ref="id47"/>
+			<label kind="guard" x="145" y="-365">true</label>
+			<label kind="assignment" x="60" y="-348">tick_counter = 0,
+tick_counter_ = 0</label>
+		</transition>
+		<transition>
+			<source ref="id49"/>
+			<target ref="id48"/>
+			<label kind="guard" x="1" y="-297">tick_counter_ &gt; delay</label>
+		</transition>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id46"/>
+			<label kind="guard" x="-738" y="-297">check_occurrence(disc_ina_id_1)</label>
+			<label kind="assignment" x="-737" y="-280">tick_counter = 0,
+tick_counter_ = 0</label>
+			<nail x="-755" y="-280"/>
+		</transition>
+		<transition>
+			<source ref="id44"/>
+			<target ref="id49"/>
+			<label kind="guard" x="-296" y="-263">not ( check_occurrence(disc_ina_id_1)
+or check_occurrence(disc_ina_id_2) 
+or check_occurrence(disc_ina_id_3)
+or check_occurrence(cmd_id) )</label>
+			<label kind="assignment" x="-228" y="-195">tick_counter = 0</label>
+			<nail x="-169" y="-212"/>
+		</transition>
+		<transition>
+			<source ref="id49"/>
+			<target ref="id44"/>
+			<label kind="guard" x="-228" y="-297">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id49"/>
+			<target ref="id51"/>
+			<label kind="guard" x="-25" y="-399">tick_counter &lt;= r and 
+tick_counter_ &lt;= delay</label>
+			<nail x="26" y="-357"/>
+		</transition>
+		<transition>
+			<source ref="id51"/>
+			<target ref="id49"/>
+			<label kind="synchronisation" x="-169" y="-365">global_clock_tick?</label>
+			<label kind="assignment" x="-169" y="-348">tick_counter+=1,
+tick_counter_ +=1</label>
+		</transition>
+		<transition>
+			<source ref="id52"/>
+			<target ref="id51"/>
+			<label kind="guard" x="-262" y="-408">check_occurrence(disc_act_id_2)</label>
+			<label kind="assignment" x="-236" y="-391">tick_counter = 0</label>
+			<nail x="-254" y="-391"/>
+			<nail x="-84" y="-391"/>
+		</transition>
+		<transition>
+			<source ref="id52"/>
+			<target ref="id50"/>
+			<label kind="guard" x="-305" y="-535">check_occurrence(f_miss_id)</label>
+			<label kind="assignment" x="-305" y="-518">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id52"/>
+			<target ref="id51"/>
+			<label kind="guard" x="-279" y="-442">check_occurrence(disc_act_id_1)</label>
+			<label kind="assignment" x="-245" y="-425">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id53"/>
+			<target ref="id46"/>
+			<label kind="guard" x="-704" y="-518">tick_counter &lt;= r</label>
+			<nail x="-645" y="-501"/>
+		</transition>
+		<transition>
+			<source ref="id52"/>
+			<target ref="id53"/>
+			<label kind="guard" x="-561" y="-561">not ( check_occurrence(f_miss_id) 
+or check_occurrence(disc_act_id_1) 
+or check_occurrence(disc_act_id_2) 
+or check_occurrence(disc_act_id_3) )</label>
+			<label kind="assignment" x="-483" y="-493">tick_counter = 0</label>
+			<nail x="-424" y="-501"/>
+		</transition>
+		<transition>
+			<source ref="id53"/>
+			<target ref="id52"/>
+			<label kind="guard" x="-475" y="-442">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id46"/>
+			<target ref="id53"/>
+			<label kind="synchronisation" x="-696" y="-442">global_clock_tick?</label>
+			<label kind="assignment" x="-704" y="-425">tick_counter +=1</label>
+		</transition>
+	</template>
+	<template>
+		<name>Actuator</name>
+		<parameter>const int&amp; r, const int&amp; action_id, const int&amp; state_change_id, urgent broadcast chan&amp; state_change, const int&amp; fstuck_id, const int&amp; reset_id</parameter>
+		<declaration>int[0,20] tick_counter=0;</declaration>
+		<location id="id54" x="178" y="119">
+			<name x="168" y="85">S4Temp</name>
+			<urgent/>
+		</location>
+		<location id="id55" x="408" y="119">
+			<name x="398" y="85">S4</name>
+			<label kind="invariant" x="398" y="136">tick_counter &lt;= r</label>
+		</location>
+		<location id="id56" x="408" y="-42">
+			<name x="398" y="-76">S2Temp</name>
+			<urgent/>
+		</location>
+		<location id="id57" x="-595" y="102">
+			<name x="-605" y="68">S3Temp</name>
+			<urgent/>
+		</location>
+		<location id="id58" x="-374" y="102">
+			<name x="-384" y="68">S3</name>
+			<label kind="invariant" x="-357" y="85">tick_counter &lt;= r</label>
+		</location>
+		<location id="id59" x="-595" y="-42">
+			<name x="-605" y="-76">S1</name>
+			<label kind="invariant" x="-731" y="-50">tick_counter &lt;= r</label>
+		</location>
+		<location id="id60" x="-374" y="-42">
+			<name x="-384" y="-76">S1Temp</name>
+			<urgent/>
+		</location>
+		<location id="id61" x="-119" y="-42">
+			<name x="-153" y="-76">S1S2Temp</name>
+			<committed/>
+		</location>
+		<location id="id62" x="178" y="-42">
+			<name x="168" y="-76">S2</name>
+		</location>
+		<init ref="id59"/>
+		<transition>
+			<source ref="id55"/>
+			<target ref="id55"/>
+			<label kind="guard" x="426" y="161">tick_counter &lt; r</label>
+			<label kind="synchronisation" x="426" y="178">global_clock_tick?</label>
+			<label kind="assignment" x="426" y="195">tick_counter+=1</label>
+			<nail x="408" y="195"/>
+			<nail x="484" y="195"/>
+		</transition>
+		<transition>
+			<source ref="id54"/>
+			<target ref="id55"/>
+			<label kind="guard" x="187" y="161">not check_occurrence(reset_id)</label>
+			<label kind="assignment" x="246" y="178">tick_counter = 0</label>
+			<nail x="306" y="187"/>
+		</transition>
+		<transition>
+			<source ref="id54"/>
+			<target ref="id62"/>
+			<label kind="guard" x="178" y="4">check_occurrence(reset_id)</label>
+			<label kind="assignment" x="178" y="38">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id55"/>
+			<target ref="id54"/>
+			<label kind="guard" x="229" y="85">tick_counter &gt;= r</label>
+			<label kind="synchronisation" x="229" y="102">global_clock_tick?</label>
+		</transition>
+		<transition>
+			<source ref="id56"/>
+			<target ref="id55"/>
+			<label kind="guard" x="408" y="4">check_occurrence(reset_id)</label>
+			<label kind="assignment" x="408" y="38">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id56"/>
+			<target ref="id62"/>
+			<label kind="guard" x="195" y="-110">not check_occurrence(fstuck_id)</label>
+			<label kind="assignment" x="229" y="-93">tick_counter = 0</label>
+			<nail x="280" y="-102"/>
+		</transition>
+		<transition>
+			<source ref="id62"/>
+			<target ref="id56"/>
+			<label kind="guard" x="221" y="-59">tick_counter &gt;= r</label>
+			<label kind="synchronisation" x="221" y="-42">global_clock_tick?</label>
+		</transition>
+		<transition>
+			<source ref="id62"/>
+			<target ref="id62"/>
+			<label kind="guard" x="76" y="-153">tick_counter &lt; r</label>
+			<label kind="synchronisation" x="76" y="-136">global_clock_tick?</label>
+			<label kind="assignment" x="76" y="-119">tick_counter+=1</label>
+			<nail x="178" y="-119"/>
+			<nail x="93" y="-119"/>
+		</transition>
+		<transition>
+			<source ref="id57"/>
+			<target ref="id58"/>
+			<label kind="guard" x="-587" y="128">not check_occurrence(reset_id)</label>
+			<label kind="assignment" x="-536" y="145">tick_counter=0</label>
+			<nail x="-476" y="162"/>
+		</transition>
+		<transition>
+			<source ref="id57"/>
+			<target ref="id59"/>
+			<label kind="guard" x="-680" y="9">check_occurrence(reset_id)</label>
+			<label kind="assignment" x="-646" y="26">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id60"/>
+			<target ref="id59"/>
+			<label kind="guard" x="-570" y="-135">not ( check_occurrence(action_id) or 
+check_occurrence(fstuck_id) )</label>
+			<label kind="assignment" x="-536" y="-101">tick_counter = 0</label>
+			<nail x="-485" y="-110"/>
+		</transition>
+		<transition>
+			<source ref="id58"/>
+			<target ref="id58"/>
+			<label kind="guard" x="-366" y="162">tick_counter &lt; r</label>
+			<label kind="synchronisation" x="-366" y="179">global_clock_tick?</label>
+			<label kind="assignment" x="-366" y="196">tick_counter+=1</label>
+			<nail x="-374" y="179"/>
+			<nail x="-306" y="179"/>
+		</transition>
+		<transition>
+			<source ref="id58"/>
+			<target ref="id57"/>
+			<label kind="guard" x="-519" y="68">tick_counter &gt;= r</label>
+			<label kind="synchronisation" x="-527" y="85">global_clock_tick?</label>
+		</transition>
+		<transition>
+			<source ref="id61"/>
+			<target ref="id62"/>
+			<label kind="synchronisation" x="-60" y="-59">state_change!</label>
+			<label kind="assignment" x="-101" y="-42">register_occurrence(state_change_id)</label>
+		</transition>
+		<transition>
+			<source ref="id60"/>
+			<target ref="id58"/>
+			<label kind="guard" x="-374" y="-4">check_occurrence(fstuck_id)</label>
+			<label kind="assignment" x="-374" y="30">tick_counter=0</label>
+		</transition>
+		<transition>
+			<source ref="id60"/>
+			<target ref="id61"/>
+			<label kind="guard" x="-340" y="-59">check_occurrence(action_id)</label>
+			<label kind="assignment" x="-298" y="-42">tick_counter=0</label>
+		</transition>
+		<transition>
+			<source ref="id59"/>
+			<target ref="id60"/>
+			<label kind="guard" x="-544" y="-67">tick_counter &gt;= r</label>
+			<label kind="synchronisation" x="-544" y="-42">global_clock_tick?</label>
+		</transition>
+		<transition>
+			<source ref="id59"/>
+			<target ref="id59"/>
+			<label kind="guard" x="-706" y="-169">tick_counter &lt; r</label>
+			<label kind="synchronisation" x="-697" y="-152">global_clock_tick?</label>
+			<label kind="assignment" x="-706" y="-135">tick_counter+=1</label>
+			<nail x="-671" y="-110"/>
+			<nail x="-595" y="-110"/>
+		</transition>
+	</template>
+	<template>
+		<name>Breaker</name>
+		<parameter>const int&amp; r, const int&amp; tto, const int&amp; ttc, const int&amp; f_stuck_id, const int&amp; cmd_id, const int&amp; cmd_id_2, const int&amp; act_id, const int&amp; act_id_2, urgent broadcast chan&amp; act_state_change, urgent broadcast chan&amp; act_state_change_2 </parameter>
+		<declaration>int[0,20]  tick_counter = 0;
+int[0,20] tick_counter_= 0;</declaration>
+		<location id="id63" x="-850" y="-544">
+			<name x="-875" y="-578">TEMP10</name>
+			<committed/>
+		</location>
+		<location id="id64" x="-1054" y="-680">
+			<name x="-1113" y="-688">TEMP9</name>
+			<committed/>
+		</location>
+		<location id="id65" x="-1054" y="-544">
+			<name x="-1114" y="-553">TEMP8</name>
+			<urgent/>
+		</location>
+		<location id="id66" x="-637" y="-544">
+			<name x="-613" y="-552">STUCK_OPEN</name>
+		</location>
+		<location id="id67" x="-1054" y="-408">
+			<name x="-1071" y="-391">CLOSING</name>
+		</location>
+		<location id="id68" x="-637" y="-408">
+			<name x="-671" y="-391">TEMP7</name>
+			<committed/>
+		</location>
+		<location id="id69" x="-408" y="-408">
+			<name x="-418" y="-442">TEMP6</name>
+			<urgent/>
+		</location>
+		<location id="id70" x="-178" y="-408">
+			<name x="-161" y="-417">OPEN</name>
+		</location>
+		<location id="id71" x="-178" y="-544">
+			<name x="-161" y="-552">TEMP5</name>
+			<committed/>
+		</location>
+		<location id="id72" x="-399" y="-671">
+			<name x="-425" y="-705">TEMP4</name>
+			<committed/>
+		</location>
+		<location id="id73" x="-637" y="-671">
+			<name x="-756" y="-680">STUCK_CLOSE</name>
+		</location>
+		<location id="id74" x="-178" y="-671">
+			<name x="-161" y="-680">TEMP3</name>
+			<urgent/>
+		</location>
+		<location id="id75" x="-178" y="-799">
+			<name x="-205" y="-833">OPENING</name>
+		</location>
+		<location id="id76" x="-637" y="-799">
+			<name x="-647" y="-833">TEMP2</name>
+			<committed/>
+		</location>
+		<location id="id77" x="-841" y="-799">
+			<name x="-858" y="-782">TEMP1</name>
+			<urgent/>
+		</location>
+		<location id="id78" x="-1053" y="-799">
+			<name x="-1113" y="-807">CLOSE</name>
+		</location>
+		<init ref="id78"/>
+		<transition>
+			<source ref="id64"/>
+			<target ref="id65"/>
+			<label kind="guard" x="-1147" y="-620">false</label>
+			<label kind="assignment" x="-1190" y="-603">tick_counter_ = 0</label>
+			<nail x="-1105" y="-620"/>
+		</transition>
+		<transition>
+			<source ref="id65"/>
+			<target ref="id67"/>
+			<label kind="guard" x="-1215" y="-493">tick_counter &lt;= r and
+tick_counter_ &lt;= ttc</label>
+			<nail x="-1113" y="-476"/>
+		</transition>
+		<transition>
+			<source ref="id63"/>
+			<target ref="id65"/>
+			<label kind="guard" x="-1054" y="-612">not check_occurrence(f_stuck_id)</label>
+			<label kind="assignment" x="-1003" y="-595">tick_counter = 0</label>
+			<nail x="-952" y="-595"/>
+		</transition>
+		<transition>
+			<source ref="id63"/>
+			<target ref="id66"/>
+			<label kind="guard" x="-841" y="-561">check_occurrence(f_stuck_id)</label>
+			<label kind="assignment" x="-815" y="-544">tick_counter = 0,
+tick_counter_ = 0</label>
+		</transition>
+		<transition>
+			<source ref="id65"/>
+			<target ref="id63"/>
+			<label kind="guard" x="-1011" y="-561">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id64"/>
+			<target ref="id78"/>
+			<label kind="guard" x="-1053" y="-773">true</label>
+			<label kind="synchronisation" x="-1053" y="-756">act_state_change_2!</label>
+			<label kind="assignment" x="-1054" y="-739">tick_counter = 0,
+tick_counter_ = 0,
+register_occurrence(act_id_2)</label>
+		</transition>
+		<transition>
+			<source ref="id65"/>
+			<target ref="id64"/>
+			<label kind="guard" x="-1054" y="-654">tick_counter_ &gt; ttc</label>
+		</transition>
+		<transition>
+			<source ref="id67"/>
+			<target ref="id65"/>
+			<label kind="synchronisation" x="-1054" y="-501">global_clock_tick?</label>
+			<label kind="assignment" x="-1054" y="-484">tick_counter +=1,
+tick_counter_ +=1</label>
+		</transition>
+		<transition>
+			<source ref="id68"/>
+			<target ref="id66"/>
+			<label kind="guard" x="-629" y="-527">check_occurrence(f_stuck_id)</label>
+			<label kind="assignment" x="-629" y="-510">tick_counter = 0,
+tick_counter_ = 0</label>
+		</transition>
+		<transition>
+			<source ref="id68"/>
+			<target ref="id67"/>
+			<label kind="guard" x="-935" y="-425">check_occurrence(cmd_id_2)</label>
+			<label kind="assignment" x="-926" y="-408">tick_counter = 0,
+tick_counter_ = 0</label>
+		</transition>
+		<transition>
+			<source ref="id68"/>
+			<target ref="id69"/>
+			<label kind="guard" x="-629" y="-348">not (check_occurrence(f_stuck_id)
+or check_occurrence(cmd_id_2) )</label>
+			<label kind="assignment" x="-578" y="-365">tick_counter = 0</label>
+			<nail x="-518" y="-357"/>
+		</transition>
+		<transition>
+			<source ref="id69"/>
+			<target ref="id68"/>
+			<label kind="guard" x="-578" y="-425">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id69"/>
+			<target ref="id70"/>
+			<label kind="guard" x="-340" y="-365">tick_counter &lt;= r</label>
+			<nail x="-289" y="-357"/>
+		</transition>
+		<transition>
+			<source ref="id70"/>
+			<target ref="id69"/>
+			<label kind="synchronisation" x="-348" y="-433">global_clock_tick?</label>
+			<label kind="assignment" x="-348" y="-408">tick_counter +=1</label>
+		</transition>
+		<transition>
+			<source ref="id71"/>
+			<target ref="id70"/>
+			<label kind="guard" x="-178" y="-518">true</label>
+			<label kind="synchronisation" x="-178" y="-450">act_state_change!</label>
+			<label kind="assignment" x="-178" y="-501">tick_counter = 0,
+tick_counter_ = 0,
+register_occurrence(act_id)</label>
+		</transition>
+		<transition>
+			<source ref="id71"/>
+			<target ref="id74"/>
+			<label kind="guard" x="-153" y="-620">false</label>
+			<label kind="assignment" x="-153" y="-603">tick_counter_= 0</label>
+			<nail x="-119" y="-612"/>
+		</transition>
+		<transition>
+			<source ref="id74"/>
+			<target ref="id71"/>
+			<label kind="guard" x="-306" y="-595">tick_counter_ &gt; tto</label>
+		</transition>
+		<transition>
+			<source ref="id72"/>
+			<target ref="id74"/>
+			<label kind="guard" x="-408" y="-620">not check_occurrence(f_stuck_id)</label>
+			<label kind="assignment" x="-340" y="-637">tick_counter = 0</label>
+			<nail x="-272" y="-620"/>
+		</transition>
+		<transition>
+			<source ref="id72"/>
+			<target ref="id73"/>
+			<label kind="guard" x="-620" y="-688">check_occurrence(f_stuck_id)</label>
+			<label kind="assignment" x="-603" y="-671">tick_counter = 0,
+tick_counter_= 0</label>
+			<nail x="-535" y="-671"/>
+		</transition>
+		<transition>
+			<source ref="id74"/>
+			<target ref="id72"/>
+			<label kind="guard" x="-374" y="-688">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id74"/>
+			<target ref="id75"/>
+			<label kind="guard" x="-161" y="-773">tick_counter &lt;= r and
+tick_counter_ &lt;= tto</label>
+			<nail x="-119" y="-739"/>
+		</transition>
+		<transition>
+			<source ref="id75"/>
+			<target ref="id74"/>
+			<label kind="synchronisation" x="-297" y="-756">global_clock_tick?</label>
+			<label kind="assignment" x="-306" y="-739">tick_counter +=1,
+tick_counter_ +=1</label>
+		</transition>
+		<transition>
+			<source ref="id76"/>
+			<target ref="id73"/>
+			<label kind="guard" x="-841" y="-756">check_occurrence(f_stuck_id)</label>
+			<label kind="assignment" x="-765" y="-739">tick_counter = 0</label>
+		</transition>
+		<transition>
+			<source ref="id76"/>
+			<target ref="id75"/>
+			<label kind="guard" x="-552" y="-816">check_occurrence(cmd_id)</label>
+			<label kind="assignment" x="-527" y="-799">tick_counter = 0,
+tick_counter_ = 0</label>
+		</transition>
+		<transition>
+			<source ref="id77"/>
+			<target ref="id78"/>
+			<label kind="guard" x="-1011" y="-884">tick_counter &lt;= r</label>
+			<nail x="-951" y="-859"/>
+		</transition>
+		<transition>
+			<source ref="id76"/>
+			<target ref="id77"/>
+			<label kind="guard" x="-841" y="-893">not ( check_occurrence(f_stuck_id)
+or check_occurrence(cmd_id) )</label>
+			<label kind="assignment" x="-807" y="-859">tick_counter = 0</label>
+			<nail x="-739" y="-859"/>
+		</transition>
+		<transition>
+			<source ref="id77"/>
+			<target ref="id76"/>
+			<label kind="guard" x="-799" y="-816">tick_counter &gt; r</label>
+		</transition>
+		<transition>
+			<source ref="id78"/>
+			<target ref="id77"/>
+			<label kind="synchronisation" x="-1035" y="-816">global_clock_tick?</label>
+			<label kind="assignment" x="-1035" y="-799">tick_counter +=1</label>
+		</transition>
+	</template>
+	<template>
+		<name>ModeCalculator</name>
+		<location id="id79" x="-255" y="-255">
+			<name x="-265" y="-289">S1Temp</name>
+			<committed/>
+		</location>
+		<location id="id80" x="-255" y="-43">
+			<name x="-265" y="-77">S1</name>
+		</location>
+		<init ref="id80"/>
+		<transition>
+			<source ref="id80"/>
+			<target ref="id79"/>
+			<label kind="synchronisation" x="-85" y="-170">actuation[2]?</label>
+			<nail x="-59" y="-42"/>
+			<nail x="-59" y="-255"/>
+		</transition>
+		<transition>
+			<source ref="id80"/>
+			<target ref="id79"/>
+			<label kind="synchronisation" x="-144" y="-212">actuation[1]?</label>
+			<nail x="-85" y="-68"/>
+			<nail x="-85" y="-229"/>
+		</transition>
+		<transition>
+			<source ref="id80"/>
+			<target ref="id79"/>
+			<label kind="synchronisation" x="-229" y="-119">actuation[0]?</label>
+			<nail x="-127" y="-85"/>
+			<nail x="-127" y="-204"/>
+		</transition>
+		<transition>
+			<source ref="id80"/>
+			<target ref="id79"/>
+			<label kind="synchronisation" x="-484" y="-212">actuation[0]?</label>
+			<nail x="-476" y="-59"/>
+			<nail x="-476" y="-238"/>
+		</transition>
+		<transition>
+			<source ref="id80"/>
+			<target ref="id79"/>
+			<label kind="synchronisation" x="-425" y="-119">actuation[2]?</label>
+			<nail x="-391" y="-85"/>
+			<nail x="-391" y="-195"/>
+		</transition>
+		<transition>
+			<source ref="id80"/>
+			<target ref="id79"/>
+			<label kind="synchronisation" x="-459" y="-170">actuation[1]?</label>
+			<nail x="-433" y="-76"/>
+			<nail x="-433" y="-212"/>
+		</transition>
+		<transition>
+			<source ref="id79"/>
+			<target ref="id80"/>
+			<label kind="synchronisation" x="-493" y="-272">mode_change!</label>
+			<label kind="assignment" x="-382" y="-272">update_mode()</label>
+			<nail x="-510" y="-255"/>
+			<nail x="-510" y="-42"/>
+		</transition>
+	</template>
+	<template>
+		<name>DeActivator</name>
+		<parameter>const int&amp; num_discs, const int&amp; offset</parameter>
+		<declaration>int[-1,3] index = 0;</declaration>
+		<location id="id81" x="-586" y="-535">
+			<name x="-569" y="-544">Temp1</name>
+			<committed/>
+		</location>
+		<location id="id82" x="-739" y="-535">
+			<name x="-749" y="-569">S1</name>
+		</location>
+		<init ref="id82"/>
+		<transition>
+			<source ref="id81"/>
+			<target ref="id81"/>
+			<label kind="guard" x="-586" y="-493">index &lt; num_discs and
+not check_disc_status(index)</label>
+			<label kind="assignment" x="-578" y="-459">index+=1</label>
+			<nail x="-586" y="-442"/>
+			<nail x="-493" y="-442"/>
+		</transition>
+		<transition>
+			<source ref="id81"/>
+			<target ref="id81"/>
+			<label kind="guard" x="-586" y="-654">index &lt; num_discs and
+check_disc_status(index)</label>
+			<label kind="synchronisation" x="-586" y="-620">discrepancies_ina[index]!</label>
+			<label kind="assignment" x="-569" y="-595">register_occurrence
+(index + offset),
+index +=1</label>
+			<nail x="-586" y="-603"/>
+			<nail x="-510" y="-603"/>
+		</transition>
+		<transition>
+			<source ref="id81"/>
+			<target ref="id82"/>
+			<label kind="guard" x="-748" y="-595">index &gt;= num_discs</label>
+			<nail x="-663" y="-578"/>
+		</transition>
+		<transition>
+			<source ref="id82"/>
+			<target ref="id81"/>
+			<label kind="synchronisation" x="-722" y="-552">mode_change?</label>
+			<label kind="assignment" x="-697" y="-535">index = 0</label>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+
+// single tick represents half cycle i.e. 8 milliseconds
+
+Global_clock_ticker = Ticker();
+
+// Injector arguments --&gt; int len, const bool&amp; type, const int&amp; inject_time, const int&amp; offset
+
+fm1_injector = Injector_Physical(1, false, 1, 22);
+missed_fault_injector = Injector_Missed(1, true, 1, 14);
+stuck_fault_injector = Injector_Stuck(1, true, 1, 17);
+
+// Edge arguments --&gt; const int&amp; edge_id, urgent broadcast chan&amp; src_act, urgent broadcast chan&amp; src_ina,  
+//                    urgent broadcast chan&amp; dst_act, urgent broadcast chan&amp; dst_ina, const int&amp; dst_id, 
+//                    const int&amp; t_min, const int&amp; t_max, const bool&amp; ND
+
+f1_d1 = FaultEdge(edge_ids[0], f_physical[0], f_physical_ina[0], discrepancies[0], discrepancies_ina[0], disc_act_ids[0], 1, 2, false);
+f1_d2 = FaultEdge(edge_ids[1], f_physical[0], f_physical_ina[0], discrepancies[1], discrepancies_ina[1], disc_act_ids[1], 1, 2, false);
+f1_d3 = FaultEdge(edge_ids[2], f_physical[0], f_physical_ina[0], discrepancies[2], discrepancies_ina[2], disc_act_ids[2], 1, 2, false);
+
+
+// Zone 1 element arguments --&gt; const int&amp; f_miss_id, const int&amp; disc_id, const int&amp; cmd_id, urgent broadcast chan&amp; command,
+//                              const int&amp; trip_id, urgent broadcast chan&amp; trip , const int&amp; r
+
+// Zone 2 element arguments --&gt; const int&amp; f_miss_id, const int&amp; disc_act_id_1, const int&amp; disc_act_id_2,  const int&amp; disc_ina_id_1,
+//                              const int&amp; disc_ina_id_2, const int&amp; cmd_id, urgent broadcast chan&amp; command, const int&amp; trip_id, 
+//                              const int&amp; r, const int&amp; delay
+
+// Zone 3 element arguments --&gt; const int&amp; f_miss_id, const int&amp; disc_act_id_1, const int&amp; disc_act_id_2, const int&amp; disc_act_id_2,
+//                              const int&amp; disc_ina_id_1, const int&amp; disc_ina_id_2, const int&amp; disc_ina_id_2, const int&amp; cmd_id, 
+//                              urgent broadcast chan&amp; command, const int&amp; r, const int&amp; delay
+
+// PA1
+r1_z1_element  = Zone1Element(missed_fault_ids[0], disc_act_ids[0], command_ids[0], command[0], trip_id, trip, 0);
+r1_z2_element  = Zone2Element(missed_fault_ids[0], disc_act_ids[0], 50, disc_ina_ids[0], 50, command_ids[0], command[0], 51, 0, 4);
+r1_z3_element  = Zone3Element(missed_fault_ids[0], disc_act_ids[0], 50, 51, disc_ina_ids[0], 50, 51, command_ids[0], command[0], 0, 5);
+
+// PA2
+r2_z2_element  = Zone2Element(missed_fault_ids[1], 50, disc_act_ids[1], 50, disc_ina_ids[1], command_ids[1], command[1], trip_id, 0, 4);
+r2_z3_element  = Zone3Element(missed_fault_ids[1], 50, disc_act_ids[1], 51, 50, disc_ina_ids[1], 51, command_ids[1], command[1], 0, 5);
+
+// PA3
+r3_z3_element  = Zone3Element(missed_fault_ids[2], 50, 51, disc_act_ids[2], 50, 51, disc_ina_ids[2], command_ids[2], command[2], 0, 5);
+
+
+
+// Breaker arguments --&gt; int&amp; r, const int&amp; tto, const int&amp; ttc, const int&amp; f_stuck_id, const int&amp; cmd_id, const int&amp; cmd_id_2,
+//                       const int&amp; act_id, const int&amp; act_id_2, urgent broadcast chan&amp; act_state_change, urgent broadcast chan&amp; act_state_change_2 
+
+b1 = Breaker(0, 1, 1, stuck_fault_ids[0], command_ids[0], 35, state_change_ids[0], 36, actuation[0], actuation[0]);
+b2 = Breaker(0, 1, 1, stuck_fault_ids[1], command_ids[1], 35, state_change_ids[1], 36, actuation[1], actuation[1]);
+b3 = Breaker(0, 1, 1, stuck_fault_ids[2], command_ids[2], 35, state_change_ids[2], 36, actuation[2], actuation[2]);
+
+
+mc = ModeCalculator();
+
+// DeActivator arguments --&gt; const int&amp; num_discs, const int&amp; offset
+de = DeActivator(3, 6);
+
+
+// List one or more processes to be composed into a system.
+system Global_clock_ticker, 
+fm1_injector, stuck_fault_injector, missed_fault_injector,
+f1_d1, f1_d2, f1_d3, r1_z1_element, r1_z2_element, r1_z3_element, 
+r2_z2_element, r2_z3_element, r3_z3_element, b1, b2, b3, mc, de;</system>
+	<queries>
+		<query>
+			<formula>A[] (abs_time &gt; (fm1_injector.inject_time + f1_d1.t_max + r2_z2_element.delay) and not (f_missed_var[1] or f_stuck_var[1]) imply not (discrepancy_state[0] or discrepancy_state[1] or discrepancy_state[2]) )
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>A[] (abs_time &gt; (fm1_injector.inject_time + f1_d3.t_max + r3_z3_element.delay ) and not f_missed_var[2] and f_missed_var[1] imply r3_z3_element.TRIPPED )
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>A[] (abs_time &gt; (fm1_injector.inject_time + f1_d2.t_max + r2_z2_element.delay) and not f_missed_var[0] imply r2_z2_element.TRIPPED )
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>A[] (abs_time &gt; (fm1_injector.inject_time + f1_d1.t_max ) and not f_missed_var[0] imply  r1_z1_element.TRIPPED )
+			</formula>
+			<comment>
+			</comment>
+		</query>
+		<query>
+			<formula>A[] ( abs_time &gt; (fm1_injector.inject_time + f1_d1.t_max) imply f1_d1.S9 ) and (abs_time &gt; (fm1_injector.inject_time + f1_d2.t_max) imply f1_d2.S9 ) and (abs_time &gt; (fm1_injector.inject_time + f1_d3.t_max) imply f1_d3.S9)
+			</formula>
+			<comment>Fault propagtation edges fire by their respective t_max times
+			</comment>
+		</query>
+		<query>
+			<formula>A[] (abs_time &gt; fm1_injector.inject_time imply (fm1_injector.S2 and f_physical_var[0]) )
+			</formula>
+			<comment>The fault injector automaton injects faults at appropriate time
+			</comment>
+		</query>
+		<query>
+			<formula>A[] (time &lt;= 1 and time &gt;= 0)
+			</formula>
+			<comment>The clock variable is bounded by 1
+			</comment>
+		</query>
+		<query>
+			<formula>A[] not deadlock
+			</formula>
+			<comment>This is a safety property that enusres there is a no deadlock in the system and the time always evolve
+			</comment>
+		</query>
+	</queries>
+</nta>
